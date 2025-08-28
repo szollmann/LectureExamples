@@ -131,7 +131,7 @@
 				 var x = -5.0;
 				 var y = 0;
 				 
-				 var fishShape = new THREE.Shape();
+				 /*var fishShape = new THREE.Shape();
 				 
 				 fishShape.moveTo(x,y);
 				 fishShape.quadraticCurveTo(x + 5.0, y - 8.0, x + 9.0, y - 1.0);
@@ -147,7 +147,39 @@
 				 
 				 // addShape( shape, color, x, y, z, rx, ry,rz, s );
 				 
-				 addShape( fishShape,        extrudeSettings, 0x404040 );
+				 addShape( fishShape,        extrudeSettings, 0x404040 );*/
+				var marioShape = new THREE.Shape();
+
+// start at bottom-left
+marioShape.moveTo(0, 0);
+
+// body
+marioShape.lineTo(0, 8);
+marioShape.lineTo(4, 8);
+marioShape.lineTo(4, 0);
+marioShape.lineTo(0, 0);
+
+// head (on top of body)
+marioShape.moveTo(1, 8);
+marioShape.lineTo(1, 12);
+marioShape.lineTo(5, 12);
+marioShape.lineTo(5, 8);
+marioShape.lineTo(1, 8);
+
+// little “hat”
+marioShape.moveTo(1, 12);
+marioShape.lineTo(1, 13.5);
+marioShape.lineTo(5.5, 13.5);
+marioShape.lineTo(5.5, 12);
+marioShape.lineTo(1, 12);
+
+// extrusion settings
+var extrudeSettings = { 
+    depth: 2,       // use "depth" instead of "amount" in newer Three.js
+    bevelEnabled: false 
+};
+
+addShape(marioShape, extrudeSettings, 0xff0000);  // red like Mario
 				 
 				 //
 				 
