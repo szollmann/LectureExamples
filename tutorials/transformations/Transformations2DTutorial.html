@@ -3,28 +3,28 @@
 	<head>
 		<title>2D Transformations</title>
 		<meta charset="utf-8">
-			<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-				<link rel="stylesheet" href="Transformations2DTutorial/themes/test.min.css" />
-				<link rel="stylesheet" href="Transformations2DTutorial/themes/jquery.mobile.icons.min.css" />
-				<link rel="stylesheet" href="Transformations2DTutorial/jquery/jquery.mobile.structure-1.4.5.min.css" />
-				<script src="Transformations2DTutorial/jquery/jquery-1.11.1.min.js"></script>
-				<script src="Transformations2DTutorial/jquery/jquery.mobile-1.4.5.min.js"></script>
-				
-				<style>
-					body {
-						margin: 0px;
-						background-color: #000000;
-						overflow: hidden;
-					}
-				</style>
-				</head>
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link rel="stylesheet" href="Transformations2DTutorial/themes/test.min.css" />
+		<link rel="stylesheet" href="Transformations2DTutorial/themes/jquery.mobile.icons.min.css" />
+		<link rel="stylesheet" href="Transformations2DTutorial/jquery/jquery.mobile.structure-1.4.5.min.css" />
+		<script src="Transformations2DTutorial/jquery/jquery-1.11.1.min.js"></script>
+		<script src="Transformations2DTutorial/jquery/jquery.mobile-1.4.5.min.js"></script>
+
+		<style>
+			body {
+				margin: 0px;
+				background-color: #000000;
+				overflow: hidden;
+			}
+		</style>
+	</head>
 	<body>
-		
+
 		<script src="Transformations2DTutorial/three.min.js"></script>
 		<script src="Transformations2DTutorial/js/OrbitControls.js"></script>
 		<a href="Transformations2DTutorial.html#popupBasic" id="popupbutton" data-rel="popup">Transform 2D</a>
-		
-		<div data-role="popup" id="popupBasic" data-dismissible="false" data-theme="b" style="z-index: 3000;   position: absolute; padding: 10px 20px 10px 10px;width:360px; background-color: rgba(202, 202, 202, 0.75);background: rgba(202, 202, 202, 0.75);" data-position-to="#popupbutton">
+
+		<div data-role="popup" id="popupBasic" data-dismissible="false" data-theme="b" style="z-index: 3000; position: absolute; padding: 10px 20px 10px 10px;width:360px; background-color: rgba(202, 202, 202, 0.75);background: rgba(202, 202, 202, 0.75);" data-position-to="#popupbutton">
 			<a href="Transformations2DTutorial.html#" data-rel="back" class="ui-btn ui-corner-all ui-shadow ui-btn-b ui-icon-delete ui-btn-icon-notext ui-btn-left">Close</a>
 			<h3>Transform 2D</h3>
 			<h4>Input</h4>
@@ -34,51 +34,101 @@
 [1, 0, 0],
 [0, 1, 0],
 [0, 0, 1]
-						
 					</textarea>
 					<button type="button" id="applyButton" onclick="applyMatrix()" >Apply Matrix!</button>
 					<button type="button" id="resetButton" onclick="resetMatrix()" >Reset Matrix!</button>
 					<h4>Output</h4>
-					
 					<textarea id="completematrix">
-						
-						
-						
-						
-					</textarea>
+
+
+
+
+</textarea>
 				</form>
 			</div>
-			
 		</div>
-		
-
 
 		<script>
-			
 			var container;
-			
 			var camera, scene, renderer;
 			var controls;
-			
 			var group;
-			
+
+			// We don't need a single global mesh variable anymore
+			// var mesh;
+
 			var targetRotation = 0;
 			var targetRotationOnMouseDown = 0;
-			
 			var mouseX = 0;
 			var mouseXOnMouseDown = 0;
-			
 			var windowHalfX = window.innerWidth / 2;
 			var windowHalfY = window.innerHeight / 2;
-			var mesh;
+
 			init();
 			animate();
-			
+
+			function createLabeledAxes(options) {
+    // Use defaults for missing options
+    const config = {
+        size: options.size || 10,
+        axisRadius: options.axisRadius || 0.05,
+        tickRadius: options.tickRadius || 0.03,
+        tickLength: options.tickLength || 0.5,
+        tickSpacing: options.tickSpacing || 1,
+        labelSize: options.labelSize || 16
+    };
+
+    const axesGroup = new THREE.Group();
+
+    // Axes
+    const xAxis = createAxis('x', 0xff0000, config.axisRadius, config.size); // Red
+    const yAxis = createAxis('y', 0x00ff00, config.axisRadius, config.size); // Green
+    const zAxis = createAxis('z', 0x0000ff, config.axisRadius, config.size); // Blue
+    axesGroup.add(xAxis, yAxis, zAxis);
+
+    // Axis Labels ('X', 'Y', 'Z')
+    const xLabel = createLabel('X', new THREE.Vector3(config.size + 1, 0, 0), '#ff0000', config.labelSize + 4);
+    const yLabel = createLabel('Y', new THREE.Vector3(0, config.size + 1, 0), '#00ff00', config.labelSize + 4);
+    const zLabel = createLabel('Z', new THREE.Vector3(0, 0, config.size + 1), '#0000ff', config.labelSize + 4);
+    axesGroup.add(xLabel, yLabel, zLabel);
+
+
+    // Ticks and Tick Labels
+    for (let i = config.tickSpacing; i <= config.size; i += config.tickSpacing) {
+        // --- X Axis Ticks ---
+        const xTickGeom = new THREE.CylinderGeometry(config.tickRadius, config.tickRadius, config.tickLength, 6);
+        const xTickMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const xTick = new THREE.Mesh(xTickGeom, xTickMat);
+        xTick.position.x = i;
+        axesGroup.add(xTick);
+        axesGroup.add(createLabel(i.toString(), new THREE.Vector3(i, -config.tickLength, 0), '#ff0000', config.labelSize));
+
+        // --- Y Axis Ticks ---
+        const yTickGeom = new THREE.CylinderGeometry(config.tickRadius, config.tickRadius, config.tickLength, 6);
+        const yTickMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const yTick = new THREE.Mesh(yTickGeom, yTickMat);
+        yTick.rotation.z = Math.PI / 2; // Rotate to be perpendicular to the axis
+        yTick.position.y = i;
+        axesGroup.add(yTick);
+        axesGroup.add(createLabel(i.toString(), new THREE.Vector3(config.tickLength, i, 0), '#00ff00', config.labelSize));
+
+        // --- Z Axis Ticks ---
+        const zTickGeom = new THREE.CylinderGeometry(config.tickRadius, config.tickRadius, config.tickLength, 6);
+        const zTickMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        const zTick = new THREE.Mesh(zTickGeom, zTickMat);
+        zTick.rotation.x = Math.PI / 2; // Rotate to be perpendicular to the axis
+        zTick.position.z = i;
+        axesGroup.add(zTick);
+        axesGroup.add(createLabel(i.toString(), new THREE.Vector3(0, -config.tickLength, i), '#0000ff', config.labelSize));
+    }
+
+    return axesGroup;
+}
+
 			function init() {
-				
 				container = document.createElement( 'div' );
 				document.body.appendChild( container );
-				
+
 				var info = document.createElement( 'div' );
 				info.style.position = 'absolute';
 				info.style.top = '10px';
@@ -86,194 +136,243 @@
 				info.style.textAlign = 'center';
 				info.innerHTML = 'Demonstration of 2D transforms';
 				container.appendChild( info );
-				
+
 				scene = new THREE.Scene();
-				
+
 				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 2000 );
-				camera.position.set( 0, 0, 30 );
+				camera.position.set( 0, 0, 40 ); // Moved camera back a bit to see the whole character
 				scene.add( camera );
-				
+
 				var light = new THREE.PointLight( 0xffffff, 0.8 );
 				camera.add( light );
-				
+
 				group = new THREE.Group();
 				var axisHelper = new THREE.AxisHelper( 1000);
-				group.add( axisHelper );
+				scene.add( axisHelper );
 
-				group.position.y = 0;
+				//group.position.y = -5; // Center the character vertically
 				group.position.z = 0;
 				scene.add( group );
-				
-				
-				function addShape( shape, extrudeSettings, color ) {
-					
-					// flat shape with texture
-					// note: default UVs generated by ShapeBufferGemoetry are simply the x- and y-coordinates of the vertices
-					
+
+				// Modified addShape to correctly handle Z-position for layering
+				function addShape( shape, mcolor, z ) {
 					var geometry = new THREE.ShapeBufferGeometry( shape );
-					
-					var meshMaterial = new THREE.MeshBasicMaterial({color: 0x7777ff, side: THREE.DoubleSide});
-					
-					
-					mesh = new THREE.Mesh( geometry, meshMaterial);
-					mesh.position.set( 0, 0, -0.01  );
-					//mesh.rotation.set( rx, ry, rz );
-					//mesh.scale.set( s, s, s );
-					group.add( mesh );
-					
-					
+					var meshMaterial = new THREE.MeshBasicMaterial({color: mcolor, side: THREE.DoubleSide});
+					var mesh = new THREE.Mesh( geometry, meshMaterial);
+					mesh.position.set( 0, 0, z );
+					group.add( mesh ); // Add the mesh to the group
 				}
-				
-				
-				 
-				 // Fish
-				 
-				 var x = -5.0;
-				 var y = 0;
-				 
-				 /*var fishShape = new THREE.Shape();
-				 
-				 fishShape.moveTo(x,y);
-				 fishShape.quadraticCurveTo(x + 5.0, y - 8.0, x + 9.0, y - 1.0);
-				 fishShape.quadraticCurveTo(x + 10.0, y - 1.0, x + 11.5, y - 4.0);
-				 fishShape.quadraticCurveTo(x + 11.5, y, x + 11.5, y + 4.0);
-				 fishShape.quadraticCurveTo(x + 10.0, y + 1.0, x + 9.0, y + 1.0);
-				 fishShape.quadraticCurveTo(x + 5.0, y + 8.0, x, y);
-				 
-				 
-				
-				 
-				 var extrudeSettings = { amount: 8, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 1, bevelThickness: 1 };
-				 
-				 // addShape( shape, color, x, y, z, rx, ry,rz, s );
-				 
-				 addShape( fishShape,        extrudeSettings, 0x404040 );*/
-				var marioShape = new THREE.Shape();
 
-// start at bottom-left
-marioShape.moveTo(0, 0);
+				// --- Character Code ---
+				const colors = {
+					skin: 0xffa500,      // Orange
+					shirt: 0x1e90ff,     // DodgerBlue
+					star: 0xffd700,      // Gold
+					shoes: 0xdc143c,     // Crimson
+					white: 0xffffff,
+					black: 0x000000,
+					iris: 0x4169e1      // RoyalBlue
+				};
 
-// body
-marioShape.lineTo(0, 8);
-marioShape.lineTo(4, 8);
-marioShape.lineTo(4, 0);
-marioShape.lineTo(0, 0);
+				// Head (a large circle)
+				var head = new THREE.Shape();
+				head.absarc(0, 10, 5, 0, Math.PI * 2, false);
 
-// head (on top of body)
-marioShape.moveTo(1, 8);
-marioShape.lineTo(1, 12);
-marioShape.lineTo(5, 12);
-marioShape.lineTo(5, 8);
-marioShape.lineTo(1, 8);
+				// Left Ear
+				var leftEar = new THREE.Shape();
+				leftEar.absarc(-3.5, 14, 1.5, 0, Math.PI * 2, false);
 
-// little “hat”
-marioShape.moveTo(1, 12);
-marioShape.lineTo(1, 13.5);
-marioShape.lineTo(5.5, 13.5);
-marioShape.lineTo(5.5, 12);
-marioShape.lineTo(1, 12);
+				// Right Ear
+				var rightEar = new THREE.Shape();
+				rightEar.absarc(3.5, 14, 1.5, 0, Math.PI * 2, false);
 
-// extrusion settings
-var extrudeSettings = { 
-    depth: 2,       // use "depth" instead of "amount" in newer Three.js
-    bevelEnabled: false 
-};
+				// Left Eye (White part)
+				var leftEyeWhite = new THREE.Shape();
+				leftEyeWhite.absellipse(-1.8, 11, 1.5, 2, 0, Math.PI * 2, false);
 
-addShape(marioShape, extrudeSettings, 0xff0000);  // red like Mario
-				 
-				 //
-				 
-				 renderer = new THREE.WebGLRenderer( { antialias: true } );
-				 renderer.setClearColor( 0xf0f0f0 );
-				 renderer.setPixelRatio( window.devicePixelRatio );
-				 renderer.setSize( window.innerWidth, window.innerHeight );
-				 container.appendChild( renderer.domElement );
-				
+				// Left Eye (Iris)
+				var leftEyeIris = new THREE.Shape();
+				leftEyeIris.absarc(-1.8, 11, 1.2, 0, Math.PI * 2, false);
+
+				// Left Eye (Pupil)
+				var leftEyePupil = new THREE.Shape();
+				leftEyePupil.absarc(-1.8, 11, 0.6, 0, Math.PI * 2, false);
+
+				// Left Eye (Glint)
+				var leftEyeGlint = new THREE.Shape();
+				leftEyeGlint.absarc(-1.4, 11.8, 0.3, 0, Math.PI * 2, false);
+
+				// Right Eye (White part)
+				var rightEyeWhite = new THREE.Shape();
+				rightEyeWhite.absellipse(1.8, 11, 1.5, 2, 0, Math.PI * 2, false);
+
+				// Right Eye (Iris)
+				var rightEyeIris = new THREE.Shape();
+				rightEyeIris.absarc(1.8, 11, 1.2, 0, Math.PI * 2, false);
+
+				// Right Eye (Pupil)
+				var rightEyePupil = new THREE.Shape();
+				rightEyePupil.absarc(1.8, 11, 0.6, 0, Math.PI * 2, false);
+
+				// Right Eye (Glint)
+				var rightEyeGlint = new THREE.Shape();
+				rightEyeGlint.absarc(2.2, 11.8, 0.3, 0, Math.PI * 2, false);
+
+				// Body (a softer, rounded shape)
+				var body = new THREE.Shape();
+				body.moveTo(-3, 0);
+				body.lineTo(-3, 7);
+				body.quadraticCurveTo(0, 9, 3, 7); // Rounded shoulders
+				body.lineTo(3, 0);
+				body.quadraticCurveTo(0, -1, -3, 0); // Rounded bottom
+
+				// Star on shirt
+				var star = new THREE.Shape();
+				var R = 1, r = 0.5; // Outer and inner radius
+				star.moveTo(0, 5 + R);
+				for (var i = 1; i < 10; i++) {
+					var radius = i % 2 === 0 ? R : r;
+					var angle = i * Math.PI / 5;
+					star.lineTo(radius * Math.sin(angle), 5 + radius * Math.cos(angle));
+				}
+
+				// Left Arm (waving)
+				var leftArm = new THREE.Shape();
+				leftArm.moveTo(-3, 4);
+				leftArm.lineTo(-5, 6);
+				leftArm.lineTo(-4.5, 7);
+				leftArm.lineTo(-2.5, 5);
+
+				// Right Arm (lowered)
+				var rightArm = new THREE.Shape();
+				rightArm.moveTo(3, 4);
+				rightArm.lineTo(5, 3);
+				rightArm.lineTo(5.5, 4);
+				rightArm.lineTo(3.5, 5);
+				rightArm.lineTo(3, 4);
+
+				// Left Leg/Shoe
+				var leftLeg = new THREE.Shape();
+				leftLeg.moveTo(-2.5, -2);
+				leftLeg.lineTo(-2.5, 0);
+				leftLeg.lineTo(-0.5, 0);
+				leftLeg.lineTo(-0.5, -2);
+				leftLeg.quadraticCurveTo(-1.5, -3.5, -2.5, -2);
+
+				// Right Leg/Shoe
+				var rightLeg = new THREE.Shape();
+				rightLeg.moveTo(0.5, -2);
+				rightLeg.lineTo(0.5, 0);
+				rightLeg.lineTo(2.5, 0);
+				rightLeg.lineTo(2.5, -2);
+				rightLeg.quadraticCurveTo(1.5, -3.5, 0.5, -2);
+
+				// --- Add them all to the scene ---
+				var z = 0; // Base depth
+
+				// Body Parts (drawn from back to front)
+				addShape(leftEar, colors.skin, z);
+				addShape(rightEar, colors.skin, z);
+				addShape(leftArm, colors.skin, z);
+				addShape(rightArm, colors.skin, z);
+				addShape(leftLeg, colors.shoes, z);
+				addShape(rightLeg, colors.shoes, z);
+				addShape(body, colors.shirt, z += 0.1);
+				addShape(head, colors.skin, z += 0.1);
+
+				// Facial Features (layered on top)
+				z += 0.1;
+				addShape(leftEyeWhite, colors.white, z);
+				addShape(rightEyeWhite, colors.white, z);
+				addShape(star, colors.star, z);
+
+				z += 0.1;
+				addShape(leftEyeIris, colors.iris, z);
+				addShape(rightEyeIris, colors.iris, z);
+
+				z += 0.1;
+				addShape(leftEyePupil, colors.black, z);
+				addShape(rightEyePupil, colors.black, z);
+
+				z += 0.1;
+				addShape(leftEyeGlint, colors.white, z);
+				addShape(rightEyeGlint, colors.white, z);
+				// --- End Character Code ---
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor( 0xf0f0f0 );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
 				controls = new THREE.OrbitControls(camera, renderer.domElement);
-				// to disable rotation
-				// Set to true to disable this control
-				controls.noRotate = true;
+				controls.noRotate = true; // to disable rotation
 				window.addEventListener( 'resize', onWindowResize, false );
-				 
 			}
-		
-		function PopUp(){
-			$( "#popupBasic" ).popup( "open" )
-			// to disable pan
-			controls.noPan= true;
-		}
-		
-		$(document).ready(function(){
-						  setTimeout(function(){
-									 PopUp()
-									 },1000); // 5000 to load it after 5 seconds from page load
-						  
-						  $( "#popupBasic" ).bind({
-												  popupafterclose: function(event, ui) { //controls.noPan= false;
-												  }
-												  });
-						  });
-		
-		function onWindowResize() {
-			
-			windowHalfX = window.innerWidth / 2;
-			windowHalfY = window.innerHeight / 2;
-			
-			camera.aspect = window.innerWidth / window.innerHeight;
-			camera.updateProjectionMatrix();
-			
-			renderer.setSize( window.innerWidth, window.innerHeight );
-			
-		}
-		function applyMatrix() {
-			var inputMat = "[ " + $('#matrix').val() + " ]";
-			
-			if(IsJsonStringValid(inputMat)){
-				m1 = JSON.parse( inputMat);
-				if(m1.length==3&&m1[0].length==3){
-				// m1 = JSON.parse($('#matrix').val());
-				var m = new THREE.Matrix4();
-				
-				/*
-				 a b 0 c
-				 d e 0 f
-				 0 0 0 0
-				 g h 0 i
-				 */
-				m.set(m1[0][0],m1[0][1],0,m1[0][2],
-					  m1[1][0],m1[1][1],0,m1[1][2],
-					  0,0,1,0,
-					  m1[2][0],m1[2][1],0,m1[2][2]);
-					  mesh.applyMatrix( m);
-					  var completemat =mesh.matrix.elements;
-					  printMatrix(completemat);
-					  console.log( m1);
-				}
-				else{
-					alert("wrong matrix format");
+
+			function PopUp(){
+				$( "#popupBasic" ).popup( "open" );
+				controls.noPan= true; // to disable pan
+			}
+
+			$(document).ready(function(){
+				setTimeout(function(){ PopUp() }, 1000);
+				$( "#popupBasic" ).bind({
+					popupafterclose: function(event, ui) { /* controls.noPan= false; */ }
+				});
+			});
+
+			function onWindowResize() {
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+			// --- MODIFIED FUNCTIONS ---
+
+			function applyMatrix() {
+				var inputMat = "[ " + $('#matrix').val() + " ]";
+
+				if(IsJsonStringValid(inputMat)){
+					var m1 = JSON.parse( inputMat);
+					if(m1.length==3 && m1[0].length==3){
+						var m = new THREE.Matrix4();
+						m.set(
+							m1[0][0], m1[0][1], 0, m1[0][2],
+							m1[1][0], m1[1][1], 0, m1[1][2],
+							0,       0,        1, 0,
+							m1[2][0], m1[2][1], 0, m1[2][2]
+						);
+						// Apply matrix to the GROUP, not the single mesh
+						group.applyMatrix( m );
+						var completemat = group.matrix.elements;
+						printMatrix(completemat);
+					} else {
+						alert("Wrong matrix format: Must be a 3x3 matrix.");
+					}
+				} else {
+					alert("Wrong matrix format: Invalid JSON.");
 				}
 			}
-			else{
-				alert("wrong matrix format");
+
+			function resetMatrix() {
+				// Reset the GROUP's transformations
+				group.position.set( -0, 0, 0 ); // Set back to initial position
+				group.rotation.set( 0, 0, 0 );
+				group.scale.set( 1, 1, 1 );
+				group.updateMatrix();
+
+				var completemat = group.matrix.elements;
+				printMatrix(completemat);
 			}
-		}
-		function resetMatrix() {
-			
-			mesh.position.set( 0, 0, 0 );
-			mesh.rotation.set( 0, 0, 0 );
-			mesh.scale.set( 1, 1, 1 );
-			mesh.updateMatrix();
-			
-			var completemat =mesh.matrix.elements;
-			printMatrix(completemat);
-		
-		}
-		
-		function IsJsonStringValid(str) {
-			var maxLen = 1000;
-			if (maxLen && str.length > maxLen)
-				return false;
-			else{
+
+			// --- HELPER FUNCTIONS (Unchanged) ---
+
+			function IsJsonStringValid(str) {
+				var maxLen = 1000;
+				if (maxLen && str.length > maxLen) return false;
 				try {
 					JSON.parse(str);
 				} catch (e) {
@@ -281,42 +380,24 @@ addShape(marioShape, extrudeSettings, 0xff0000);  // red like Mario
 				}
 				return true;
 			}
-		}
-		
-		function printMatrix(completemat){
-			var message ="";
-			
-				message+=completemat[0].toFixed(4) + ", " + completemat[4].toFixed(4) + ", " +completemat[12].toFixed(4) + "\n";
-				message+=completemat[1].toFixed(4) + ", " + completemat[5].toFixed(4) + ", " +completemat[13].toFixed(4) + "\n";
-				message+=completemat[3].toFixed(4) + ", " + completemat[7].toFixed(4) + ", " +completemat[15].toFixed(4)+ "\n";
 
+			function printMatrix(completemat){
+				var message ="";
+				message += completemat[0].toFixed(4) + ", " + completemat[4].toFixed(4) + ", " + completemat[12].toFixed(4) + "\n";
+				message += completemat[1].toFixed(4) + ", " + completemat[5].toFixed(4) + ", " + completemat[13].toFixed(4) + "\n";
+				message += completemat[3].toFixed(4) + ", " + completemat[7].toFixed(4) + ", " + completemat[15].toFixed(4) + "\n";
+				document.getElementById('completematrix').value = message;
+			}
 
+			function animate() {
+				requestAnimationFrame( animate );
+				render();
+			}
 
-			document.getElementById('completematrix').value = message;
-		}
-		//
-		
-		
-		//
-		
-		function animate() {
-			
-			requestAnimationFrame( animate );
-			
-			render();
-		
-			
-		}
-		
-		function render() {
-			controls.update();
-			//group.rotation.y += ( targetRotation - group.rotation.y ) * 0.05;
-			renderer.render( scene, camera );
-			
-		}
-		
-			</script>
-		
+			function render() {
+				controls.update();
+				renderer.render( scene, camera );
+			}
+		</script>
 	</body>
 </html>
-
