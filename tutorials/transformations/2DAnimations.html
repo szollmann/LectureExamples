@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>2D Animation Principles</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<!-- Note: These are placeholder paths. You may need to adjust them. -->
+		<link rel="stylesheet" href="Transformations2DTutorial/themes/test.min.css" />
+		<link rel="stylesheet" href="Transformations2DTutorial/themes/jquery.mobile.icons.min.css" />
+		<link rel="stylesheet" href="Transformations2DTutorial/jquery/jquery.mobile.structure-1.4.5.min.css" />
+		<script src="Transformations2DTutorial/jquery/jquery-1.11.1.min.js"></script>
+		<script src="Transformations2DTutorial/jquery/jquery.mobile-1.4.5.min.js"></script>
+
+		<style>
+			body {
+				margin: 0px;
+				background-color: #000000;
+				overflow: hidden;
+			}
+			/* Simple styling for the new inputs */
+			#popupBasic input[type=number] {
+				width: 70px;
+				padding: 5px;
+				margin: 0 10px 10px 5px;
+				color: black; /* Ensure text is visible */
+			}
+		</style>
+	</head>
+	<body>
+
+		<!-- Note: These are placeholder paths. You may need to adjust them. -->
+		<script src="Transformations2DTutorial/three.min.js"></script>
+		<script src="Transformations2DTutorial/js/OrbitControls.js"></script>
+
+		<a href="#" id="popupbutton" data-rel="popup">Transform 2D</a>
+
+		<div data-role="popup" id="popupBasic" data-dismissible="false" data-theme="b" style="z-index: 3000; position: absolute; padding: 10px 20px 10px 10px;width:360px; background-color: rgba(202, 202, 202, 0.75);" data-position-to="#popupbutton">
+			<a href="#" data-rel="back" class="ui-btn ui-corner-all ui-shadow ui-btn-b ui-icon-delete ui-btn-icon-notext ui-btn-left">Close</a>
+
+			<h4>Move To Position</h4>
+			<div>
+				<label for="targetX">X:</label>
+				<input type="number" id="targetX" value="0">
+				<label for="targetY">Y:</label>
+				<input type="number" id="targetY" value="0">
+				<button type="button" id="moveButton" onclick="setTargetPosition()">Move!</button>
+			</div>
+
+			<hr>
+
+			<h3>Transform 2D</h3>
+			<h4>Input</h4>
+			<div id="main">
+				<form>
+					<textarea  id="matrix" rows="4">
+[1, 0, 0],
+[0, 1, 0],
+[0, 0, 1]
+					</textarea>
+					<button type="button" id="applyButton" onclick="applyMatrix()" >Apply Matrix!</button>
+					<button type="button" id="resetButton" onclick="resetMatrix()" >Reset Matrix!</button>
+					<h4>Output</h4>
+					<textarea id="completematrix" rows="4"></textarea>
+				</form>
+			</div>
+		</div>
+
+		<script>
+			var container;
+			var camera, scene, renderer;
+			var controls;
+			var group; // This group will be transformed
+			var characterAnchor; // This group will hold the character in place
+			var targetPosition = new THREE.Vector3(0, 0, 0); // Target for movement
+
+			init();
+			animate();
+
+			function init() {
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				scene = new THREE.Scene();
+
+				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 2000 );
+				camera.position.set( 0, 0, 40 );
+				scene.add( camera );
+
+				var light = new THREE.PointLight( 0xffffff, 0.8 );
+				camera.add( light );
+
+				characterAnchor = new THREE.Group();
+				characterAnchor.position.y = -5;
+				scene.add(characterAnchor);
+
+				group = new THREE.Group();
+				characterAnchor.add(group);
+
+				var axisHelper = new THREE.AxisHelper(1000);
+				scene.add(axisHelper);
+
+
+				function addShape( shape, mcolor, z ) {
+					var geometry = new THREE.ShapeBufferGeometry( shape );
+					var meshMaterial = new THREE.MeshBasicMaterial({color: mcolor, side: THREE.DoubleSide});
+					var mesh = new THREE.Mesh( geometry, meshMaterial);
+					mesh.position.set( 0, 0, z );
+					group.add( mesh );
+				}
+
+				// --- Character Code ---
+				const colors = {
+					skin: 0xffa500,      // Orange
+					shirt: 0x1e90ff,     // DodgerBlue
+					star: 0xffd700,      // Gold
+					shoes: 0xdc143c,     // Crimson
+					white: 0xffffff,
+					black: 0x000000,
+					iris: 0x4169e1      // RoyalBlue
+				};
+
+				var head = new THREE.Shape();
+				head.absarc(0, 10, 5, 0, Math.PI * 2, false);
+				var leftEar = new THREE.Shape();
+				leftEar.absarc(-3.5, 14, 1.5, 0, Math.PI * 2, false);
+				var rightEar = new THREE.Shape();
+				rightEar.absarc(3.5, 14, 1.5, 0, Math.PI * 2, false);
+				var leftEyeWhite = new THREE.Shape();
+				leftEyeWhite.absellipse(-1.8, 11, 1.5, 2, 0, Math.PI * 2, false);
+				var leftEyeIris = new THREE.Shape();
+				leftEyeIris.absarc(-1.8, 11, 1.2, 0, Math.PI * 2, false);
+				var leftEyePupil = new THREE.Shape();
+				leftEyePupil.absarc(-1.8, 11, 0.6, 0, Math.PI * 2, false);
+				var leftEyeGlint = new THREE.Shape();
+				leftEyeGlint.absarc(-1.4, 11.8, 0.3, 0, Math.PI * 2, false);
+				var rightEyeWhite = new THREE.Shape();
+				rightEyeWhite.absellipse(1.8, 11, 1.5, 2, 0, Math.PI * 2, false);
+				var rightEyeIris = new THREE.Shape();
+				rightEyeIris.absarc(1.8, 11, 1.2, 0, Math.PI * 2, false);
+				var rightEyePupil = new THREE.Shape();
+				rightEyePupil.absarc(1.8, 11, 0.6, 0, Math.PI * 2, false);
+				var rightEyeGlint = new THREE.Shape();
+				rightEyeGlint.absarc(2.2, 11.8, 0.3, 0, Math.PI * 2, false);
+				var body = new THREE.Shape();
+				body.moveTo(-3, 0);
+				body.lineTo(-3, 7);
+				body.quadraticCurveTo(0, 9, 3, 7);
+				body.lineTo(3, 0);
+				body.quadraticCurveTo(0, -1, -3, 0);
+				var star = new THREE.Shape();
+				var R = 1, r = 0.5;
+				star.moveTo(0, 5 + R);
+				for (var i = 1; i < 10; i++) {
+					var radius = i % 2 === 0 ? R : r;
+					var angle = i * Math.PI / 5;
+					star.lineTo(radius * Math.sin(angle), 5 + radius * Math.cos(angle));
+				}
+				var leftArm = new THREE.Shape();
+				leftArm.moveTo(-3, 6);
+				leftArm.lineTo(-5, 8);
+				leftArm.lineTo(-4.5, 9);
+				leftArm.lineTo(-2.5, 7);
+				var rightArm = new THREE.Shape();
+				rightArm.moveTo(3, 4);
+				rightArm.lineTo(5, 3);
+				rightArm.lineTo(5.5, 4);
+				rightArm.lineTo(3.5, 5);
+				rightArm.lineTo(3, 4);
+				var leftLeg = new THREE.Shape();
+				leftLeg.moveTo(-2.5, -2);
+				leftLeg.lineTo(-2.5, 0);
+				leftLeg.lineTo(-0.5, 0);
+				leftLeg.lineTo(-0.5, -2);
+				leftLeg.quadraticCurveTo(-1.5, -3.5, -2.5, -2);
+				var rightLeg = new THREE.Shape();
+				rightLeg.moveTo(0.5, -2);
+				rightLeg.lineTo(0.5, 0);
+				rightLeg.lineTo(2.5, 0);
+				rightLeg.lineTo(2.5, -2);
+				rightLeg.quadraticCurveTo(1.5, -3.5, 0.5, -2);
+
+				var z = 0;
+				addShape(leftEar, colors.skin, z);
+				addShape(rightEar, colors.skin, z);
+				addShape(leftArm, colors.skin, z);
+				addShape(rightArm, colors.skin, z);
+				addShape(leftLeg, colors.shoes, z);
+				addShape(rightLeg, colors.shoes, z);
+				addShape(body, colors.shirt, z += 0.1);
+				addShape(head, colors.skin, z += 0.1);
+				z += 0.1;
+				addShape(leftEyeWhite, colors.white, z);
+				addShape(rightEyeWhite, colors.white, z);
+				addShape(star, colors.star, z);
+				z += 0.1;
+				addShape(leftEyeIris, colors.iris, z);
+				addShape(rightEyeIris, colors.iris, z);
+				z += 0.1;
+				addShape(leftEyePupil, colors.black, z);
+				addShape(rightEyePupil, colors.black, z);
+				z += 0.1;
+				addShape(leftEyeGlint, colors.white, z);
+				addShape(rightEyeGlint, colors.white, z);
+
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setClearColor( 0xf0f0f0 );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				controls = new THREE.OrbitControls(camera, renderer.domElement);
+				controls.noRotate = true;
+				window.addEventListener( 'resize', onWindowResize, false );
+			}
+
+			function PopUp(){
+				$( "#popupBasic" ).popup( "open" );
+				controls.noPan= true;
+			}
+
+			$(document).ready(function(){
+				setTimeout(function(){ PopUp() }, 1000);
+			});
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+			// --- NEW FUNCTION TO SET TARGET ---
+			function setTargetPosition() {
+				const x = parseFloat(document.getElementById('targetX').value) || 0;
+				const y = parseFloat(document.getElementById('targetY').value) || 0;
+				targetPosition.x = x;
+				targetPosition.y = y;
+			}
+
+			function applyMatrix() {
+				var inputMat = "[ " + $('#matrix').val() + " ]";
+				if(IsJsonStringValid(inputMat)){
+					var m1 = JSON.parse( inputMat);
+					if(m1.length==3 && m1[0].length==3){
+						var m = new THREE.Matrix4();
+						m.set(
+							m1[0][0], m1[0][1], 0, m1[0][2],
+							m1[1][0], m1[1][1], 0, m1[1][2],
+							0,       0,        1, 0,
+							m1[2][0], m1[2][1], 0, m1[2][2]
+						);
+						group.applyMatrix( m );
+						var completemat = group.matrix.elements;
+						printMatrix(completemat);
+					} else {
+						alert("Wrong matrix format: Must be a 3x3 matrix.");
+					}
+				} else {
+					alert("Wrong matrix format: Invalid JSON.");
+				}
+			}
+
+			function resetMatrix() {
+				// Also reset the target position on reset
+				targetPosition.set(0, 0, 0);
+				document.getElementById('targetX').value = 0;
+				document.getElementById('targetY').value = 0;
+
+				group.position.set( 0, 0, 0 );
+				group.rotation.set( 0, 0, 0 );
+				group.scale.set( 1, 1, 1 );
+				group.updateMatrix();
+				var completemat = group.matrix.elements;
+				printMatrix(completemat);
+			}
+
+			function IsJsonStringValid(str) {
+				try {
+					JSON.parse(str);
+				} catch (e) {
+					return false;
+				}
+				return true;
+			}
+
+			function printMatrix(completemat){
+				var message ="";
+				message += completemat[0].toFixed(4) + ", " + completemat[4].toFixed(4) + ", " + completemat[12].toFixed(4) + "\n";
+				message += completemat[1].toFixed(4) + ", " + completemat[5].toFixed(4) + ", " + completemat[13].toFixed(4) + "\n";
+				message += completemat[3].toFixed(4) + ", " + completemat[7].toFixed(4) + ", " + completemat[15].toFixed(4) + "\n";
+				document.getElementById('completematrix').value = message;
+			}
+
+			// --- UPDATED ANIMATION FUNCTION ---
+			function animate() {
+				requestAnimationFrame(animate);
+
+				// Smoothly move (lerp) the group towards the target position
+				const lerpFactor = 0.05; // Controls the speed of the movement
+				group.position.x += (targetPosition.x - group.position.x) * lerpFactor;
+				group.position.y += (targetPosition.y - group.position.y) * lerpFactor;
+
+				// The matrix needs to be updated after changing position
+				group.updateMatrix();
+
+				// Continuously update the output window with the current matrix
+				printMatrix(group.matrix.elements);
+
+				render();
+			}
+
+			function render() {
+				controls.update();
+				renderer.render( scene, camera );
+			}
+		</script>
+	</body>
+</html>
