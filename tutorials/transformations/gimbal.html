@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js Gimbal Lock Demo with Rotation Orders</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <!-- lil-gui for sliders -->
+  <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm" type="module"></script>
+
+  <script type="module">
+    import GUI from "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm";
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(4, 4, 6);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Cube
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshNormalMaterial();
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+
+    // Axes helper
+    scene.add(new THREE.AxesHelper(3));
+
+    // Parameters (renamed)
+    const params = { x: 0, y: 0, z: 0, order: "XYZ" };
+
+    function updateRotation() {
+      cube.rotation.set(
+        THREE.MathUtils.degToRad(params.x),
+        THREE.MathUtils.degToRad(params.y),
+        THREE.MathUtils.degToRad(params.z),
+        params.order
+      );
+    }
+
+    // GUI
+    const gui = new GUI();
+    gui.add(params, "x", -180, 180).onChange(updateRotation);
+    gui.add(params, "y", -180, 180).onChange(updateRotation);
+    gui.add(params, "z", -180, 180).onChange(updateRotation);
+    gui.add(params, "order", ["XYZ","XZY","YXZ","YZX","ZXY","ZYX"]).onChange(updateRotation);
+
+    updateRotation();
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Resize handling
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
