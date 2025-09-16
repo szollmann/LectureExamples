@@ -21,6 +21,7 @@
 
         <script src="three.min.js"></script>
 		<script src="js/OrbitControls.js"></script>
+    <script src="js/loaders/OBJLoader.js"></script>
 
 		<a href="#popupBasic" id="popupbutton" data-rel="popup">Transform 3D</a>
 
@@ -79,35 +80,116 @@
 
                 scene = new THREE.Scene();
 				group = new THREE.Group();
-				var axisHelper = new THREE.AxisHelper( 100 );
-				group.add( axisHelper );
+        // Create a red cylinder for the x axis
+  var xMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  var xGeometry = new THREE.CylinderGeometry(0.05, 0.05, 5, 32);
+  var xAxis = new THREE.Mesh(xGeometry, xMaterial);
+  xAxis.rotation.z = -Math.PI / 2;
+  xAxis.position.x = 2.5;
+  group.add(xAxis);
 
-				group.position.y = 0;
-				group.position.z = 0;
-				scene.add( group );
-                var texture = new THREE.TextureLoader().load( 'crate.gif' );
-                var geometry = new THREE.BoxBufferGeometry( 1, 1, 1 );
-                var material = new THREE.MeshBasicMaterial( { map: texture } );
-                mesh = new THREE.Mesh( geometry, material );
-                group.add( mesh );
-                camera.lookAt( mesh.position );
+  // Add label for x-axis
+  var xLabel = createLabel("X", xMaterial);
+  xLabel.position.x = 3;
+  xLabel.position.y = -0.5;
+  group.add(xLabel);
+// Create a green cylinder for the y axis
+var yMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+var yGeometry = new THREE.CylinderGeometry(0.05, 0.05, 5, 32);
+var yAxis = new THREE.Mesh(yGeometry, yMaterial);
+yAxis.position.y = 2.5;
+group.add(yAxis);
 
-                //mesh.geometry.applyMatrix( new THREE.Matrix4().setPosition( -10,-22,-30 ) );
-                var m = new THREE.Matrix4();
+// Add label for y-axis
+var yLabel = createLabel("Y", yMaterial);
+yLabel.position.x = -0.5;
+yLabel.position.y = 3;
+group.add(yLabel);
 
-                m.set( 1, 0, 0, 0,
-                      0, 1, 0, 0,
-                     0, 0, 1, 0,
-                     0, 0, 0, 1);
-                     mesh.geometry.applyMatrix( m );
+// Create a blue cylinder for the z axis
+var zMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+var zGeometry = new THREE.CylinderGeometry(0.05, 0.05, 5, 32);
+var zAxis = new THREE.Mesh(zGeometry, zMaterial);
+zAxis.rotation.x = Math.PI / 2;
+zAxis.position.z = 2.5;
+group.add(zAxis);
 
-                renderer = new THREE.WebGLRenderer();
-                renderer.setPixelRatio( window.devicePixelRatio );
-                renderer.setSize( window.innerWidth, window.innerHeight );
-                document.body.appendChild( renderer.domElement );
-                //
+// Add label for z-axis
+var zLabel = createLabel("Z", zMaterial);
+zLabel.position.z = 3;
+zLabel.position.y = -0.5;
+group.add(zLabel);
 
-				controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        function createLabel(text, material) {
+    var canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    var context = canvas.getContext("2d");
+    context.font = "Bold 48px Arial";
+    context.fillStyle = "#" + material.color.getHexString();
+    context.textAlign = "center";
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
+    var texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+    var material = new THREE.SpriteMaterial({ map: texture, color: 0xffffff });
+    var sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.5, 0.5, 0.5);
+    return sprite;
+}
+
+				var gridHelper = new THREE.GridHelper( 10, 20 );
+				gridHelper.translateOnAxis(new THREE.Vector3(1,1,1), 0.01);
+				group.add( gridHelper );
+				var axisHelper = new THREE.AxisHelper( 5 );
+        //axisHelper.material.linewidth = 2; // Set the width of the axis helper
+                group.add( axisHelper );
+
+                group.position.y = 0;
+        group.position.z = 0;
+        scene.background = new THREE.Color(0xffffff); // Set the scene background to white
+
+        scene.add(group);
+
+        var loader = new THREE.OBJLoader();
+
+        // Load the teapot.obj file
+        loader.load(
+            'teapot.obj',
+            function (object) {
+              var material = new THREE.MeshPhongMaterial({
+          color: 0x808080,
+          specular: 0xffffff,
+          shininess: 100
+      });
+                object.traverse(function (child) {
+                    if (child instanceof THREE.Mesh) {
+                        child.material = material;
+                    }
+                });
+                mesh = object;
+                group.add(object);
+                camera.lookAt(object.position);
+            },
+            function (xhr) {
+                console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+            },
+            function (error) {
+                console.log('An error happened');
+            }
+        );
+
+        // Add a directional light
+var light = new THREE.DirectionalLight(0xffffff, 1);
+light.position.set(1, 1, 1);
+scene.add(light);
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
 
 				//document.addEventListener( 'mousedown', onDocumentMouseDown, false );
 				//document.addEventListener( 'touchstart', onDocumentTouchStart, false );

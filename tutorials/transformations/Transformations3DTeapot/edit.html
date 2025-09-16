@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>3D Transformations</title>
+        <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+                <link rel="stylesheet" href="themes/test.min.css" />
+                <link rel="stylesheet" href="themes/jquery.mobile.icons.min.css" />
+                <link rel="stylesheet" href="jquery/jquery.mobile.structure-1.4.5.min.css" />
+                <script src="jquery/jquery-1.11.1.min.js"></script>
+                <script src="jquery/jquery.mobile-1.4.5.min.js"></script>
+				 <style>
+                    body {
+                        margin: 0px;
+                        background-color: #000000;
+                        overflow: hidden;
+                    }
+                </style>
+                </head>
+    <body>
+
+        <script src="three.min.js"></script>
+		<script src="js/OrbitControls.js"></script>
+
+		<a href="#popupBasic" id="popupbutton" data-rel="popup">Transform 3D</a>
+
+		<div data-role="popup" id="popupBasic" data-dismissible="false" data-theme="b" style="z-index: 3000;   position: absolute; padding: 10px 20px 10px 10px;width:360px; background-color: rgba(202, 202, 202, 0.75);background: rgba(202, 202, 202, 0.75);" data-position-to="#popupbutton">
+			<a href="#" data-rel="back" class="ui-btn ui-corner-all ui-shadow ui-btn-b ui-icon-delete ui-btn-icon-notext ui-btn-left">Close</a>
+			<h3>Transform 3D</h3>
+			<h4>Input</h4>
+            <div id="main">
+                <form>
+                    <textarea  id="matrix" >
+[1, 0, 0, 0],
+[0, 1, 0, 0],
+[0, 0, 1, 0],
+[0, 0, 0, 1]
+                        </textarea>
+                    <button type="button" id="applyButton" onclick="applyMatrix()" >Apply Matrix!</button>
+                    <button type="button" id="resetButton" onclick="resetMatrix()" >Reset Matrix!</button>
+					<h4>Output</h4>
+
+                    <textarea id="completematrix">
+
+
+
+
+					</textarea>
+                </form>
+            </div>
+
+        </div>
+
+
+
+
+        <script>
+        // Create a scene, camera, and renderer
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Create a cube and add it to the scene
+var geometry = new THREE.BoxGeometry(1, 1, 1);
+var material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+var cube = new THREE.Mesh(geometry, material);
+scene.add(cube);
+
+// Create a transformation matrix
+var matrix = new THREE.Matrix4();
+matrix.makeRotationX(Math.PI / 4);
+matrix.makeRotationY(Math.PI / 4);
+matrix.makeRotationZ(Math.PI / 4);
+matrix.makeTranslation(0, 0, -5);
+
+// Apply the transformation matrix to the cube
+cube.applyMatrix(matrix);
+
+// Define a function to update the transformation matrix
+function updateMatrix() {
+matrix.makeRotationX(document.getElementById("rotation-x").value);
+matrix.makeRotationY(document.getElementById("rotation-y").value);
+matrix.makeRotationZ(document.getElementById("rotation-z").value);
+matrix.makeTranslation(0, 0, -5);
+cube.matrix = matrix;
+cube.matrixAutoUpdate = false;
+}
+
+// Add input sliders to control the rotation angles
+var xSlider = document.createElement("input");
+xSlider.type = "range";
+xSlider.min = "-3.14159";
+xSlider.max = "3.14159";
+xSlider.value = "0";
+xSlider.step = "0.01";
+xSlider.id = "rotation-x";
+xSlider.oninput = updateMatrix;
+document.body.appendChild(xSlider);
+
+var ySlider = document.createElement("input");
+ySlider.type = "range";
+ySlider.min = "-3.14159";
+ySlider.max = "3.14159";
+ySlider.value = "0";
+ySlider.step = "0.01";
+ySlider.id = "rotation-y";
+ySlider.oninput = updateMatrix;
+document.body.appendChild(ySlider);
+
+var zSlider = document.createElement("input");
+zSlider.type = "range";
+zSlider.min = "-3.14159";
+zSlider.max = "3.14159";
+zSlider.value = "0";
+zSlider.step = "0.01";
+zSlider.id = "rotation-z";
+zSlider.oninput = updateMatrix;
+document.body.appendChild(zSlider);
+
+// Render the scene
+function render() {
+requestAnimationFrame(render);
+renderer.render(scene, camera);
+}
+render();
+
+        </script>
+
+    </body>
+</html>
