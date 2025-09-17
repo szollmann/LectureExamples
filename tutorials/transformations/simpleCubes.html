@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Three.js Demo - True Reflection</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            font-family: sans-serif;
+        }
+        button {
+            display: block;
+            margin: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            width: 240px;
+            text-align: left;
+        }
+        .rotate-btn { background-color: #6c757d; }
+        .rotate-btn:hover { background-color: #5a6268; }
+
+        .reflect-btn { background-color: #8e44ad; } /* Purple for reflect */
+        .reflect-btn:hover { background-color: #732d91; }
+
+        #reset { background-color: #ffc107; color: black;}
+        #reset:hover { background-color: #e0a800; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <button id="rotateX" class="rotate-btn">Rotate +90° around World X</button>
+        <button id="rotateY" class="rotate-btn">Rotate +90° around World Y</button>
+        <button id="rotateZ" class="rotate-btn">Rotate +90° around World Z</button>
+        <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.1);">
+        <button id="reflectX" class="reflect-btn">Reflect across YZ Plane (Flip X)</button>
+        <button id="reflectY" class="reflect-btn">Reflect across XZ Plane (Flip Y)</button>
+        <button id="reflectZ" class="reflect-btn">Reflect across XY Plane (Flip Z)</button>
+        <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.1);">
+        <button id="reset">Reset All</button>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls, cubeGroup;
+
+        function init() {
+            THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(3, 3, 3);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(2, 5, 3);
+            scene.add(directionalLight);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            const axesHelper = new THREE.AxesHelper(2.5);
+            scene.add(axesHelper);
+
+            cubeGroup = new THREE.Group();
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+
+            const yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+            const yellowCube = new THREE.Mesh(geometry, yellowMaterial);
+            cubeGroup.add(yellowCube);
+
+            const redMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const redCube = new THREE.Mesh(geometry, redMaterial);
+            redCube.position.set(1, 0, 0);
+            cubeGroup.add(redCube);
+
+            const greenMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            const greenCube = new THREE.Mesh(geometry, greenMaterial);
+            greenCube.position.set(0, 1, 0);
+            cubeGroup.add(greenCube);
+
+            const blueMaterial = new THREE.MeshStandardMaterial({ color: 0x0080ff });
+            const blueCube = new THREE.Mesh(geometry, blueMaterial);
+            blueCube.position.set(0, 0, 1);
+            cubeGroup.add(blueCube);
+
+            scene.add(cubeGroup);
+
+            // --- Event Listeners Section ---
+            const rotationAmount = Math.PI / 2;
+            const worldAxisX = new THREE.Vector3(1, 0, 0);
+            const worldAxisY = new THREE.Vector3(0, 1, 0);
+            const worldAxisZ = new THREE.Vector3(0, 0, 1);
+
+            document.getElementById('rotateX').addEventListener('click', () => {
+                cubeGroup.rotateOnWorldAxis(worldAxisX, rotationAmount);
+            });
+            document.getElementById('rotateY').addEventListener('click', () => {
+                cubeGroup.rotateOnWorldAxis(worldAxisY, rotationAmount);
+            });
+            document.getElementById('rotateZ').addEventListener('click', () => {
+                cubeGroup.rotateOnWorldAxis(worldAxisZ, rotationAmount);
+            });
+
+            // NEW: Reflection button event listeners
+            document.getElementById('reflectX').addEventListener('click', () => {
+                cubeGroup.scale.x *= -1;
+            });
+            document.getElementById('reflectY').addEventListener('click', () => {
+                cubeGroup.scale.y *= -1;
+            });
+            document.getElementById('reflectZ').addEventListener('click', () => {
+                cubeGroup.scale.z *= -1;
+            });
+
+            // UPDATED: Reset button now also resets scale
+            document.getElementById('reset').addEventListener('click', () => {
+                cubeGroup.rotation.set(0, 0, 0);
+                cubeGroup.quaternion.set(0, 0, 0, 1);
+                cubeGroup.scale.set(1, 1, 1); // Reset scale to default
+            });
+
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
