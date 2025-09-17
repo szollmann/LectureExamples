@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Three.js Demo - True Reflection</title>
+    <title>Three.js Demo - Rounded Cubes & Labels</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <style>
@@ -34,7 +34,7 @@
         .rotate-btn { background-color: #6c757d; }
         .rotate-btn:hover { background-color: #5a6268; }
 
-        .reflect-btn { background-color: #8e44ad; } /* Purple for reflect */
+        .reflect-btn { background-color: #8e44ad; }
         .reflect-btn:hover { background-color: #732d91; }
 
         #reset { background-color: #ffc107; color: black;}
@@ -69,6 +69,9 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
         let scene, camera, renderer, controls, cubeGroup;
 
@@ -79,7 +82,7 @@
             scene.background = new THREE.Color(0xffffff);
 
             camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(3, 3, 3);
+            camera.position.set(4, 4, 4);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -97,8 +100,10 @@
             const axesHelper = new THREE.AxesHelper(2.5);
             scene.add(axesHelper);
 
+            // --- GEOMETRY & CUBES ---
             cubeGroup = new THREE.Group();
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            // Use RoundedBoxGeometry instead of BoxGeometry
+            const geometry = new RoundedBoxGeometry(1, 1, 1, 6, 0.1); // width, height, depth, segments, radius
 
             const yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
             const yellowCube = new THREE.Mesh(geometry, yellowMaterial);
@@ -118,41 +123,51 @@
             const blueCube = new THREE.Mesh(geometry, blueMaterial);
             blueCube.position.set(0, 0, 1);
             cubeGroup.add(blueCube);
-
             scene.add(cubeGroup);
 
-            // --- Event Listeners Section ---
+            // --- FONT & LABELS ---
+            const fontLoader = new FontLoader();
+            fontLoader.load('https://unpkg.com/three@0.165.0/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+                const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const textParams = { font: font, size: 0.2, height: 0.02 };
+
+                // X Label
+                const xGeo = new TextGeometry('X', textParams);
+                const xLabel = new THREE.Mesh(xGeo, textMaterial);
+                xLabel.position.set(2.6, 0, 0);
+                scene.add(xLabel);
+
+                // Y Label
+                const yGeo = new TextGeometry('Y', textParams);
+                const yLabel = new THREE.Mesh(yGeo, textMaterial);
+                yLabel.position.set(0, 2.6, 0);
+                scene.add(yLabel);
+
+                // Z Label
+                const zGeo = new TextGeometry('Z', textParams);
+                const zLabel = new THREE.Mesh(zGeo, textMaterial);
+                zLabel.position.set(0, 0, 2.6);
+                scene.add(zLabel);
+            });
+
+            // --- EVENT LISTENERS ---
             const rotationAmount = Math.PI / 2;
             const worldAxisX = new THREE.Vector3(1, 0, 0);
             const worldAxisY = new THREE.Vector3(0, 1, 0);
             const worldAxisZ = new THREE.Vector3(0, 0, 1);
 
-            document.getElementById('rotateX').addEventListener('click', () => {
-                cubeGroup.rotateOnWorldAxis(worldAxisX, rotationAmount);
-            });
-            document.getElementById('rotateY').addEventListener('click', () => {
-                cubeGroup.rotateOnWorldAxis(worldAxisY, rotationAmount);
-            });
-            document.getElementById('rotateZ').addEventListener('click', () => {
-                cubeGroup.rotateOnWorldAxis(worldAxisZ, rotationAmount);
-            });
+            document.getElementById('rotateX').addEventListener('click', () => { cubeGroup.rotateOnWorldAxis(worldAxisX, rotationAmount); });
+            document.getElementById('rotateY').addEventListener('click', () => { cubeGroup.rotateOnWorldAxis(worldAxisY, rotationAmount); });
+            document.getElementById('rotateZ').addEventListener('click', () => { cubeGroup.rotateOnWorldAxis(worldAxisZ, rotationAmount); });
 
-            // NEW: Reflection button event listeners
-            document.getElementById('reflectX').addEventListener('click', () => {
-                cubeGroup.scale.x *= -1;
-            });
-            document.getElementById('reflectY').addEventListener('click', () => {
-                cubeGroup.scale.y *= -1;
-            });
-            document.getElementById('reflectZ').addEventListener('click', () => {
-                cubeGroup.scale.z *= -1;
-            });
+            document.getElementById('reflectX').addEventListener('click', () => { cubeGroup.scale.x *= -1; });
+            document.getElementById('reflectY').addEventListener('click', () => { cubeGroup.scale.y *= -1; });
+            document.getElementById('reflectZ').addEventListener('click', () => { cubeGroup.scale.z *= -1; });
 
-            // UPDATED: Reset button now also resets scale
             document.getElementById('reset').addEventListener('click', () => {
                 cubeGroup.rotation.set(0, 0, 0);
                 cubeGroup.quaternion.set(0, 0, 0, 1);
-                cubeGroup.scale.set(1, 1, 1); // Reset scale to default
+                cubeGroup.scale.set(1, 1, 1);
             });
 
             window.addEventListener('resize', onWindowResize, false);
@@ -172,7 +187,6 @@
 
         init();
         animate();
-
     </script>
 </body>
 </html>
