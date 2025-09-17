@@ -1,48 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Three.js Quaternion Manipulator (Fixed)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>Three.js Euler vs. Quaternion Demo</title>
   <style>
-    body { margin: 0; overflow: hidden; font-family: system-ui, Arial; }
-    .info {
-      position: absolute;
-      left: 12px;
-      top: 12px;
-      z-index: 10;
-      background: rgba(255,255,255,0.85);
-      padding: 8px 10px;
-      border-radius: 6px;
-      font-size: 13px;
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    canvas { display: block; }
+    #info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 10px;
+        background: rgba(0,0,0,0.6);
+        color: white;
+        border-radius: 5px;
     }
   </style>
 </head>
 <body>
-  <div class="info">Quaternion manipulator — drag the GUI sliders. Axis-angle updates quaternion and vice versa.</div>
+  <div id="info">
+    Switch between Euler and Quaternion modes to compare rotation methods.<br>
+    Notice how Quaternions avoid the "gimbal lock" issue seen with Euler angles.
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm" type="module"></script>
 
   <script type="module">
-    // --- imports (module-friendly paths) ---
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-    import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
+    import GUI from "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm";
 
-    // --- scene, camera, renderer ---
+    // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x202028);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(4, 4, 6);
+    camera.lookAt(0, 0, 0);
 
-    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(3, 2, 4);
-
-    const renderer = new THREE.WebGLRenderer({antialias: true});
-    renderer.setSize(innerWidth, innerHeight);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+    // Cube
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshNormalMaterial();
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
 
-    // --- object (box) ---
-    const cubeGeo = new THREE.BoxGeometry(1,1,1);
-    const cubeMat = new THREE.MeshNormalMaterial();
-    const cube = new THREE.Mesh(cubeGeo, cubeMat);
-    scene.
+    // Axes helper
+    scene.add(new THREE.AxesHelper(3));
+
+    // Parameters object for GUI controls
+    const params = {
+      mode: 'Euler',
+      eulerX: 0,
+      eulerY: 0,
+      eulerZ: 0,
+      order: 'XYZ',
+      // Quaternions start at (0, 0, 0, 1) for no rotation
+      quatX: 0,
+      quatY: 0,
+      quatZ: 0,
+      quatW: 1
+    };
+
+    /**
+     * This function is the core of the update. It checks the current
+     * mode and applies the rotation accordingly.
+     */
+    function updateRotation() {
+      if (params.mode === 'Euler') {
+        // Use Euler angles for rotation
+        cube.rotation.set(
+          THREE.MathUtils.degToRad(params.eulerX),
+          THREE.MathUtils.degToRad(params.eulerY),
+          THREE.MathUtils.degToRad(params.eulerZ),
+          params.order
+        );
+      } else { // Quaternion mode
+        // Use Quaternions for rotation.
+        // It's crucial to normalize the quaternion after setting its
+        // components to ensure it represents a valid rotation.
+        cube.quaternion.set(
+          params.quatX,
+          params.quatY,
+          params.quatZ,
+          params.quatW
+        ).normalize();
+      }
+    }
+
+    // --- GUI Setup ---
+    const gui = new GUI();
+
+    // Folder for Euler controls
+    const eulerFolder = gui.addFolder('Euler Angles');
+    eulerFolder.add(params, 'eulerX', -180, 180).name('X').onChange(updateRotation);
+    eulerFolder.add(params, 'eulerY', -180, 180).name('Y').onChange(updateRotation);
+    eulerFolder.add(params, 'eulerZ', -180, 180).name('Z').onChange(updateRotation);
+    eulerFolder.add(params, 'order', ["XYZ", "XZY", "YXZ", "YZX", "ZXY", "ZYX"]).onChange(updateRotation);
+
+    // Folder for Quaternion controls
+    const quatFolder = gui.addFolder('Quaternion');
+    quatFolder.add(params, 'quatX', -1, 1, 0.01).name('X').onChange(updateRotation);
+    quatFolder.add(params, 'quatY', -1, 1, 0.01).name('Y').onChange(updateRotation);
+    quatFolder.add(params, 'quatZ', -1, 1, 0.01).name('Z').onChange(updateRotation);
+    quatFolder.add(params, 'quatW', -1, 1, 0.01).name('W').onChange(updateRotation);
+
+    /**
+     * Shows/hides the GUI folders based on the selected mode.
+     */
+    function toggleControls() {
+        if (params.mode === 'Euler') {
+            eulerFolder.show();
+            quatFolder.hide();
+        } else {
+            eulerFolder.hide();
+            quatFolder.show();
+        }
+        // When switching, reset to a neutral rotation to avoid confusion
+        cube.rotation.set(0, 0, 0);
+        cube.quaternion.set(0, 0, 0, 1);
+        updateRotation();
+    }
+
+    // Add the mode switcher to the main GUI panel
+    gui.add(params, 'mode', ['Euler', 'Quaternion']).name('Rotation Mode').onChange(toggleControls);
+
+    // Initialize the correct view
+    toggleControls();
+    updateRotation();
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Resize handling
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
