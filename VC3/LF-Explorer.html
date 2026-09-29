@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interactive light-field renderer and two-plane explorer</title>
+<style>
+  :root{--ink:#172033;--muted:#66728b;--line:#d8dfeb;--blue:#1769aa;--orange:#ed8a21;--purple:#6d3bb0;--pale:#f4f7fb}
+  *{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:16px/1.45 Arial,sans-serif}main{max-width:1120px;margin:auto;padding:22px}h1{font-size:27px;margin:0 0 4px}p{margin:0;color:var(--muted)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0 10px}.toolbar button{font:inherit;padding:8px 12px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer}.toolbar button.active{background:var(--ink);border-color:var(--ink);color:#fff}
+  .viewer-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.viewer-wrap canvas{display:block;width:100%;height:auto;touch-action:none}.below{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.pane{border:1px solid var(--line);border-radius:12px;overflow:hidden}.pane canvas{display:block;width:100%;height:auto;touch-action:none}.caption{padding:8px 11px;background:var(--pale);font-size:14px;color:var(--muted)}
+  .readout{margin-top:14px;padding:10px 13px;border-radius:8px;background:var(--pale)}.blue{color:var(--blue);font-weight:bold}.orange{color:var(--orange);font-weight:bold}.purple{color:var(--purple);font-weight:bold}.hint{font-size:14px;margin-top:8px}@media(max-width:680px){main{padding:14px}h1{font-size:22px}.below{grid-template-columns:1fr}.toolbar button{font-size:14px;padding:7px 9px}}
+</style>
+</head>
+<body><main>
+<h1>Interactive light-field renderer</h1>
+<p>Drag in the scene to move a virtual camera. Click a point in the scene to select an output image coordinate.</p>
+<div class="toolbar"><button id="reset" type="button">Reset view</button><button id="rays" type="button" class="active" aria-pressed="true">Show source rays</button><button id="inputs" type="button" aria-pressed="false">Show input images</button><button id="orbit" type="button" aria-pressed="false">Auto orbit</button></div>
+<div class="viewer-wrap"><canvas id="viewer" width="1040" height="510" aria-label="Synthetic light-field scene with a draggable virtual camera"></canvas></div>
+<div class="below">
+  <div class="pane"><canvas id="grid" width="520" height="390" aria-label="Five by five grid of captured input views on the u v plane"></canvas><div class="caption">The <i>u,v</i> plane is the camera array: each thumbnail is one captured input view. Click a thumbnail to select that viewpoint.</div></div>
+  <div class="pane"><canvas id="raysCanvas" width="520" height="390" aria-label="Two-plane ray parameterisation"></canvas><div class="caption">Ray space: selected output point ((s,t)) receives samples from source viewpoints ((u,v)).</div></div>
+</div>
+<div id="readout" class="readout" aria-live="polite"></div>
+<p class="hint">The scene is synthetic so that foreground, middle-ground, and background have clearly different parallax. The construction illustrates the paper’s idea: a light field is (L(u,v,s,t)), not one fixed image.</p>
+</main>
+<script>
+(() => {
+const viewer=document.getElementById('viewer'), vc=viewer.getContext('2d');
+const grid=document.getElementById('grid'), gc=grid.getContext('2d');
+const raysCanvas=document.getElementById('raysCanvas'), rc=raysCanvas.getContext('2d');
+const readout=document.getElementById('readout');
+const C={ink:'#172033',muted:'#66728b',line:'#d8dfeb',blue:'#1769aa',orange:'#ed8a21',purple:'#6d3bb0',pale:'#f4f7fb',leaf:'#2d765e',hill:'#5b7891',field:'#aacb87'};
+let u=.15,v=-.12,s=.53,t=.5,showRays=true,showInputs=false,drag=null,start=null,orbit=false,phase=0;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function text(ctx,str,x,y,size=16,color=C.ink,align='left',weight='400'){ctx.font=`${weight} ${size}px Arial`;ctx.fillStyle=color;ctx.textAlign=align;ctx.fillText(str,x,y)}
+function line(ctx,x1,y1,x2,y2,color,w=2,a=1){ctx.save();ctx.globalAlpha=a;ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function circle(ctx,x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function scene(ctx,w,h,uu,vv,small=false){
+  const scale=1, ox=uu*(small?4:18), oy=vv*(small?3:12); ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();
+  const sky=ctx.createLinearGradient(0,0,0,h*.72);sky.addColorStop(0,'#d9edf9');sky.addColorStop(1,'#f5f4d5');ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
+  // distant horizon: little motion
+  ctx.fillStyle=C.hill;ctx.beginPath();ctx.moveTo(-50+ox*.25,h*.52+oy*.12);for(let x=-50;x<w+100;x+=55){ctx.lineTo(x+25+ox*.25,h*.35+Math.sin(x*.07)*18+oy*.12);ctx.lineTo(x+55+ox*.25,h*.52+oy*.12)}ctx.lineTo(w+60,h*.72);ctx.lineTo(-50,h*.72);ctx.fill();
+  ctx.fillStyle=C.field;ctx.fillRect(0,h*.57,w,h*.43);
+  // field lines: middle distance
+  for(let i=-3;i<12;i++)line(ctx,w*.50+ox*.65,h*.57,w*(i/9)+ox*.65,h+20,'#79a262',small?1:3,.68);
+  // house / middle distance
+  const hx=w*.56+ox*.75, hy=h*.38+oy*.55;ctx.save();ctx.translate(hx,hy);ctx.scale(scale,scale);ctx.fillStyle='#e8d9bd';ctx.fillRect(-55,0,110,80);ctx.fillStyle='#a65f49';ctx.beginPath();ctx.moveTo(-70,2);ctx.lineTo(0,-48);ctx.lineTo(70,2);ctx.fill();ctx.fillStyle='#5c4636';ctx.fillRect(-13,35,26,45);ctx.fillStyle='#8ab2d0';ctx.fillRect(-43,25,18,20);ctx.fillRect(25,25,18,20);ctx.restore();
+  // foreground tree: large motion
+  const tx=w*.24+ox*1.85,ty=h*.13+oy*1.3;ctx.fillStyle='#5f4938';ctx.fillRect(tx-13,ty+82,26,h-ty);for(let a=-.8;a<=.8;a+=.4)line(ctx,tx,ty+125,tx+Math.sin(a)*85,ty+35,'#5f4938',small?3:9);
+  for(let k=0;k<13;k++){const a=k*2.4;circle(ctx,tx+Math.cos(a)*55,ty+50+Math.sin(a*1.7)*36,small?10:28,C.leaf)}
+  // foreground flower gives an unambiguous depth cue
+  const fx=w*.79+ox*2.35,fy=h*.76+oy*1.8;line(ctx,fx,fy,fx-10,h,'#3b8159',small?2:7);for(let a=0;a<6;a++)circle(ctx,fx+Math.cos(a*Math.PI/3)*18,fy+Math.sin(a*Math.PI/3)*18,small?4:12,'#e77f8e');circle(ctx,fx,fy,small?4:10,'#f2c44e');
+  ctx.restore();
+}
+function drawViewer(){const w=viewer.width,h=viewer.height;scene(vc,w,h,u,v);vc.save();vc.strokeStyle=C.orange;vc.lineWidth=2;vc.setLineDash([6,5]);vc.beginPath();vc.moveTo(s*w-15,t*h);vc.lineTo(s*w+15,t*h);vc.moveTo(s*w,t*h-15);vc.lineTo(s*w,t*h+15);vc.stroke();vc.restore();
+  if(showInputs){const bracket=q=>{const p=(q+1)*2;let lo=Math.floor(p),hi=Math.ceil(p);if(lo===hi){if(hi<4)hi++;else lo--}return[(lo-2)/2,(hi-2)/2]},us=bracket(u),vs=bracket(v),tw=132,th=65,gap=8,x0=w-2*tw-gap-25,y0=h-2*th-gap-35;vc.fillStyle='rgba(255,255,255,.9)';vc.fillRect(x0-10,y0-27,2*tw+gap+20,2*th+gap+39);text(vc,'four nearest captured input images',x0,y0-8,13,C.muted);vs.forEach((vv,row)=>us.forEach((uu,col)=>{const x=x0+col*(tw+gap),y=y0+row*(th+gap);vc.save();vc.beginPath();vc.rect(x,y,tw,th);vc.clip();vc.translate(x,y);scene(vc,tw,th,uu,vv,true);vc.restore();vc.strokeStyle=C.purple;vc.lineWidth=2;vc.strokeRect(x,y,tw,th);text(vc,`(${uu.toFixed(1)}, ${vv.toFixed(1)})`,x+tw/2,y+th+13,11,C.purple,'center','700')}))}
+  text(vc,'virtual output view',20,32,17,C.ink,'left','700');text(vc,'drag: (u,v)   •   click: (s,t)',20,56,14,C.muted);
+  vc.fillStyle='rgba(255,255,255,.83)';vc.fillRect(w-250,16,230,50);text(vc,`u = ${u.toFixed(2)}   v = ${v.toFixed(2)}`,w-30,38,15,C.blue,'right','700');text(vc,`s = ${s.toFixed(2)}   t = ${t.toFixed(2)}`,w-30,59,15,C.orange,'right','700');
+}
+function drawGrid(){const w=grid.width,h=grid.height;gc.clearRect(0,0,w,h);gc.fillStyle='white';gc.fillRect(0,0,w,h);text(gc,'Captured input views on the (u, v) plane',w/2,31,20,C.ink,'center','700');text(gc,'Purple = four nearby captured views used for the current virtual view',w/2,56,14,C.muted,'center');const N=5, size=57, gap=8,x0=98,y0=82,bracket=q=>{const p=(q+1)*2;let lo=Math.floor(p),hi=Math.ceil(p);if(lo===hi){if(hi<4)hi++;else lo--}return[(lo-2)/2,(hi-2)/2]},us=bracket(u),vs=bracket(v);
+  for(let r=0;r<N;r++)for(let col=0;col<N;col++){const x=x0+col*(size+gap),y=y0+r*(size+gap),uu=(col-2)/2,vv=(r-2)/2,used=us.includes(uu)&&vs.includes(vv);gc.save();gc.beginPath();gc.rect(x,y,size,size);gc.clip();scene(gc,size,size,uu,vv,true);gc.restore();gc.strokeStyle=used?C.purple:C.line;gc.lineWidth=used?3:1;gc.strokeRect(x,y,size,size)}
+  const col=(u+1)*2,row=(v+1)*2,x=x0+col*(size+gap)+size/2,y=y0+row*(size+gap)+size/2;circle(gc,x,y,5,C.orange);text(gc,'virtual view',x,y-12,11,C.orange,'center','700');text(gc,'u',x0+2*(size+gap)+size/2,370,15,C.blue,'center','700');text(gc,'v',72,y0+2*(size+gap)+size/2,15,C.blue,'center','700');
+}
+function drawRays(){const w=raysCanvas.width,h=raysCanvas.height;rc.clearRect(0,0,w,h);rc.fillStyle='white';rc.fillRect(0,0,w,h);text(rc,'Selected output ray',w/2,31,20,C.ink,'center','700');text(rc,'Drag the orange point in the (s,t) plane to choose another output ray.',w/2,56,13,C.muted,'center');
+  const px=32,py=95,ps=128;rc.fillStyle=C.pale;rc.fillRect(px,py,ps,ps);rc.strokeStyle=C.orange;rc.lineWidth=2;rc.strokeRect(px,py,ps,ps);for(let q=1;q<4;q++){line(rc,px+q*ps/4,py,px+q*ps/4,py+ps,C.line,1);line(rc,px,py+q*ps/4,px+ps,py+q*ps/4,C.line,1)}const sx=px+s*ps,sy=py+t*ps;circle(rc,sx,sy,9,C.orange);text(rc,'image plane',px+ps/2,py-13,15,C.orange,'center','700');text(rc,'s',px+ps/2,py+ps+22,15,C.orange,'center','700');text(rc,'t',px-10,py+ps/2,15,C.orange,'right','700');
+  const lx=250,rx=448,top=95,bot=300,vy=top+(v+1)/2*(bot-top),ty=top+t*(bot-top);line(rc,lx,top,lx,bot,C.blue,7);line(rc,rx,top,rx,bot,C.orange,7);text(rc,'side slice',350,83,14,C.muted,'center','700');
+  if(showRays){for(let q=-1;q<=1.001;q+=.5){const yy=top+(q+1)/2*(bot-top);line(rc,lx,yy,rx,ty,C.blue,2,.4)}} else line(rc,lx,vy,rx,ty,C.purple,5);line(rc,lx,vy,rx,ty,C.purple,showRays?5:0);circle(rc,lx,vy,9,C.blue);circle(rc,rx,ty,9,C.orange);text(rc,'v',lx,323,16,C.blue,'center','700');text(rc,'t',rx,323,16,C.orange,'center','700');
+  text(rc,showRays?'multiple (u,v) samples → one selected (s,t)':'one selected ray',w/2,370,14,showRays?C.blue:C.purple,'center');
+}
+function update(){drawViewer();drawGrid();drawRays();readout.innerHTML=`The selected output sample is <span class="orange">(s,t) = (${s.toFixed(2)}, ${t.toFixed(2)})</span>. It is rendered from the selected virtual viewpoint <span class="blue">(u,v) = (${u.toFixed(2)}, ${v.toFixed(2)})</span>. <span class="purple">Foreground moves more than background</span> because their rays have different disparity across the ((u,v)) capture grid.`}
+function canvasPoint(canvas,e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}}
+viewer.addEventListener('pointerdown',e=>{drag=canvasPoint(viewer,e);start=drag;viewer.setPointerCapture(e.pointerId)});viewer.addEventListener('pointermove',e=>{if(!drag)return;const p=canvasPoint(viewer,e);u=clamp(u+(p.x-drag.x)/240,-1,1);v=clamp(v+(p.y-drag.y)/170,-1,1);drag=p;update()});viewer.addEventListener('pointerup',e=>{const p=canvasPoint(viewer,e),dx=Math.abs(p.x-start.x),dy=Math.abs(p.y-start.y);if(dx<3&&dy<3){s=clamp(p.x/viewer.width,0,1);t=clamp(p.y/viewer.height,0,1);update()}drag=null;start=null});viewer.addEventListener('pointercancel',()=>{drag=null;start=null});
+grid.addEventListener('pointerdown',e=>{const p=canvasPoint(grid,e),size=57,gap=8,x0=98,y0=82,col=Math.round((p.x-x0-size/2)/(size+gap)),row=Math.round((p.y-y0-size/2)/(size+gap));if(col>=0&&col<5&&row>=0&&row<5){u=(col-2)/2;v=(row-2)/2;update()}});
+raysCanvas.addEventListener('pointerdown',e=>{const p=canvasPoint(raysCanvas,e),px=32,py=95,ps=128;if(p.x>=px-12&&p.x<=px+ps+12&&p.y>=py-12&&p.y<=py+ps+12){drag='st';s=clamp((p.x-px)/ps,0,1);t=clamp((p.y-py)/ps,0,1);raysCanvas.setPointerCapture(e.pointerId);update()}});raysCanvas.addEventListener('pointermove',e=>{if(drag!=='st')return;const p=canvasPoint(raysCanvas,e),px=32,py=95,ps=128;s=clamp((p.x-px)/ps,0,1);t=clamp((p.y-py)/ps,0,1);update()});raysCanvas.addEventListener('pointerup',()=>{if(drag==='st')drag=null});raysCanvas.addEventListener('pointercancel',()=>{if(drag==='st')drag=null});
+document.getElementById('reset').onclick=()=>{u=.15;v=-.12;s=.53;t=.5;update()};document.getElementById('rays').onclick=e=>{showRays=!showRays;e.currentTarget.classList.toggle('active',showRays);e.currentTarget.setAttribute('aria-pressed',showRays);update()};document.getElementById('inputs').onclick=e=>{showInputs=!showInputs;e.currentTarget.classList.toggle('active',showInputs);e.currentTarget.setAttribute('aria-pressed',showInputs);update()};document.getElementById('orbit').onclick=e=>{orbit=!orbit;e.currentTarget.classList.toggle('active',orbit);e.currentTarget.setAttribute('aria-pressed',orbit);if(orbit)animate()};function animate(){if(!orbit)return;phase+=.025;u=.85*Math.sin(phase);v=.45*Math.sin(phase*.6);update();requestAnimationFrame(animate)}
+update();
+})();
+</script></body></html>
