@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bundle Adjustment Demo</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; color: #172237; background: #fff; font: 16px system-ui, sans-serif; }
+main { max-width: 1100px; margin: auto; }
+h1 { font-size: 1.35rem; margin: 16px 20px; }
+.scene { position: relative; background: #111827; color: #e2e8f0; }
+canvas { display: block; width: 100%; height: clamp(300px, 53vw, 580px); touch-action: none; cursor: grab; }
+canvas:active { cursor: grabbing; }
+.legend, .hint { position: absolute; pointer-events: none; font-size: .82rem; background: #111827df; border-radius: 6px; padding: 6px 9px; }
+.legend { top: 10px; left: 12px; }
+.hint { bottom: 8px; right: 12px; }
+.metrics, .controls { display: grid; gap: 16px; padding: 14px 20px; border-bottom: 1px solid #e2e8f0; }
+.metrics { grid-template-columns: repeat(3, 1fr); text-align: center; font-size: .85rem; }
+.controls { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.metrics output { display: block; font-size: 1rem; font-weight: 650; }
+output { font-variant-numeric: tabular-nums; }
+label { display: block; font-size: .9rem; }
+input[type=range] { width: 100%; accent-color: #2563eb; }
+fieldset { border: 0; padding: 0; margin: 0; }
+legend { font-size: .9rem; margin-bottom: 5px; }
+button { border: 0; background: #e2e8f0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+button[aria-pressed=true] { background: #2563eb; color: white; }
+p { margin: 14px 20px; font-size: .9rem; line-height: 1.45; }
+</style>
+</head>
+<body>
+<main>
+<h1>Bundle Adjustment Demo</h1>
+<div class="scene">
+  <canvas id="scene" role="img" aria-label="Rotatable 3D scene with twenty cameras, nine points, and their observations"></canvas>
+  <div class="legend"><span style="color:#60a5fa">●</span> Cameras &nbsp; <span style="color:#34d399">●</span> 3D points &nbsp; <span id="line-legend"></span></div>
+  <div class="hint">Drag to rotate</div>
+</div>
+<div class="metrics">
+  <div>Reprojection RMSE <output id="reprojection"></output></div>
+  <div>Camera position RMSE <output id="camera-error"></output></div>
+  <div>Structure RMSE <output id="structure"></output></div>
+</div>
+<div class="controls">
+  <div><label for="noise">Initial estimate noise <output id="noise-value"></output></label><input id="noise" type="range" min="0" max="100" value="40"></div>
+  <div><label for="progress">Simulated adjustment <output id="progress-value"></output></label><input id="progress" type="range" min="0" max="100" value="0"></div>
+  <div><button id="run" type="button">Run bundle adjustment</button> <output id="solver-status" role="status"></output></div>
+  <fieldset>
+    <legend>Overlays</legend>
+    <button id="rays" type="button" aria-pressed="true">Ray bundles</button>
+    <button id="residuals" type="button" aria-pressed="false">Residual errors</button>
+  </fieldset>
+</div>
+<p>Run bundle adjustment jointly refines camera poses and 3D points by minimizing the pixel distances between fixed observations and projected points. The simulated adjustment slider lets you explore a separate interpolation toward known ground truth. Moving either slider clears the solver result. Camera position and structure RMSE use the original world coordinates and depend on the reconstruction’s global alignment.</p>
+</main>
+<script>
+"use strict";
+
+const byId = id => document.getElementById(id);
+const canvas = byId("scene");
+const context = canvas.getContext("2d");
+const noise = byId("noise");
+const progress = byId("progress");
+const add = (a, b) => a.map((value, axis) => value + b[axis]);
+const subtract = (a, b) => a.map((value, axis) => value - b[axis]);
+const scale = (a, factor) => a.map(value => value * factor);
+const dot = (a, b) => a.reduce((sum, value, axis) => sum + value * b[axis], 0);
+const cross = ([x, y, z], [u, v, w]) => [y*w-z*v, z*u-x*w, x*v-y*u];
+const normalize = a => scale(a, 1 / Math.hypot(...a));
+
+const focalLength = 500;
+const imagePlaneDepth = 1.05;
+const idealPoints = [
+  [0, 1.2, 0], [-1, .2, .8], [1, .2, .8], [1, .2, -.8], [-1, .2, -.8],
+  [-.8, -.8, .6], [.8, -.8, .6], [.8, -.8, -.6], [-.8, -.8, -.6]
+];
+const camerasPerRing = 10;
+const idealCenters = [0.8, 2.7].flatMap((height, ring) =>
+  Array.from({ length: camerasPerRing }, (_, index) => {
+    const angle = (index + ring * .5) * 2 * Math.PI / camerasPerRing;
+    return [5 * Math.cos(angle), height, 5 * Math.sin(angle)];
+  })
+);
+const cameraOffsets = idealCenters.map((_, i) => [
+  .45 * Math.sin(i * 2.3 + .4), .3 * Math.cos(i * 1.9), .38 * Math.sin(i * 1.4 + 1)
+]);
+const aimingOffsets = idealCenters.map((_, i) => [
+  .5 * Math.cos(i * 2.2), .38 * Math.sin(i * 1.8 + .5), .42 * Math.cos(i * 1.6 + .8)
+]);
+const pointOffsets = idealPoints.map((_, i) => [
+  .55 * Math.sin(i * 2.1 + .6), .52 * Math.cos(i * 1.7), .55 * Math.sin(i * 3.7 + 1)
+]);
+
+function cameraPose(center, target) {
+  const forward = normalize(subtract(target, center));
+  const right = normalize(cross(forward, [0, 1, 0]));
+  return { center, forward, right, up: cross(right, forward) };
+}
+
+function project(pose, point) {
+  const offset = subtract(point, pose.center);
+  const pixelScale = focalLength / dot(offset, pose.forward);
+  return [dot(offset, pose.right) * pixelScale, -dot(offset, pose.up) * pixelScale];
+}
+
+function imageToWorld(pose, [u, v], depth) {
+  return add(pose.center, scale(add(pose.forward,
+    add(scale(pose.right, u / focalLength), scale(pose.up, -v / focalLength))), depth));
+}
+
+const observations = idealCenters.map(center => {
+  const pose = cameraPose(center, [0, 0, 0]);
+  return idealPoints.map(point => project(pose, point));
+});
+
+let pitch = .32;
+let yaw = -.48;
+let drag = null;
+let showRays = true;
+let showResiduals = false;
+let solved = null;
+let running = false;
+
+function sliderEstimates() {
+  const remaining = Number(noise.value) / 100 * (1 - Number(progress.value) / 100);
+  return {
+    points: idealPoints.map((point, i) => add(point, scale(pointOffsets[i], remaining))),
+    poses: idealCenters.map((center, i) =>
+      cameraPose(add(center, scale(cameraOffsets[i], remaining)), scale(aimingOffsets[i], remaining)))
+  };
+}
+
+// Parameterize each camera by a translation and three rotation angles
+// relative to the pose at the start of this run.
+function unpack(parameters, referencePoses) {
+  const poses = referencePoses.map((reference, i) => {
+    const index = i * 6;
+    const center = add(reference.center, parameters.slice(index, index + 3));
+    const [rx, ry, rz] = parameters.slice(index + 3, index + 6);
+    const cx = Math.cos(rx), sx = Math.sin(rx);
+    const cy = Math.cos(ry), sy = Math.sin(ry);
+    const cz = Math.cos(rz), sz = Math.sin(rz);
+    function rotate([x, y, z]) {
+      const y1 = cx * y - sx * z;
+      const z1 = sx * y + cx * z;
+      const x2 = cy * x + sy * z1;
+      return [cz * x2 - sz * y1, sz * x2 + cz * y1, -sy * x + cy * z1];
+    }
+    return { center, forward: rotate(reference.forward), right: rotate(reference.right), up: rotate(reference.up) };
+  });
+  const offset = referencePoses.length * 6;
+  const points = idealPoints.map((_, i) => parameters.slice(offset + i * 3, offset + i * 3 + 3));
+  return { poses, points };
+}
+
+function residualVector({ poses, points }) {
+  const residuals = [];
+  for (const [cameraIndex, pose] of poses.entries()) {
+    for (const [pointIndex, point] of points.entries()) {
+      if (dot(subtract(point, pose.center), pose.forward) <= .1) return null;
+      residuals.push(...subtract(project(pose, point), observations[cameraIndex][pointIndex]));
+    }
+  }
+  return residuals;
+}
+
+// Cholesky solve for the positive-definite damped normal equations.
+function solveDamped(jacobian, residuals, damping) {
+  const lower = [];
+  const rhs = [];
+  for (const [i, column] of jacobian.entries()) {
+    const row = [];
+    for (let j = 0; j <= i; j++) {
+      let entry = dot(column, jacobian[j]);
+      if (i === j) entry += damping * Math.max(entry, 1);
+      for (let k = 0; k < j; k++) entry -= row[k] * (i === j ? row[k] : lower[j][k]);
+      row.push(i === j ? Math.sqrt(entry) : entry / lower[j][j]);
+    }
+    let value = -dot(column, residuals);
+    for (let j = 0; j < i; j++) value -= row[j] * rhs[j];
+    rhs.push(value / row[i]);
+    lower.push(row);
+  }
+  for (let i = rhs.length - 1; i >= 0; i--) {
+    for (let j = i + 1; j < rhs.length; j++) rhs[i] -= lower[j][i] * rhs[j];
+    rhs[i] /= lower[i][i];
+  }
+  return rhs;
+}
+
+const iterationDelayMs = 900;
+
+async function runAdjustment() {
+  if (running) return;
+  running = true;
+  const run = byId("run");
+  const status = byId("solver-status");
+  run.disabled = noise.disabled = progress.disabled = true;
+  const initial = solved ?? sliderEstimates();
+  let parameters = [...Array(initial.poses.length * 6).fill(0), ...initial.points.flat()];
+  let residuals = residualVector(initial);
+  let cost = dot(residuals, residuals);
+  let damping = .01;
+  solved = initial;
+  try {
+    for (let attempt = 1; attempt <= 50 && cost > 1e-8; attempt++) {
+      status.value = "Iteration " + attempt;
+      await new Promise(resolve => setTimeout(resolve, iterationDelayMs));
+      const step = 1e-5;
+      const jacobian = parameters.map((_, i) => {
+        const shifted = parameters.slice();
+        shifted[i] += step;
+        return scale(subtract(residualVector(unpack(shifted, initial.poses)), residuals), 1 / step);
+      });
+      const candidate = add(parameters, solveDamped(jacobian, residuals, damping));
+      const estimate = unpack(candidate, initial.poses);
+      const nextResiduals = residualVector(estimate);
+      const nextCost = nextResiduals ? dot(nextResiduals, nextResiduals) : Infinity;
+      if (nextCost < cost) {
+        parameters = candidate;
+        residuals = nextResiduals;
+        cost = nextCost;
+        damping = Math.max(damping / 3, 1e-8);
+        solved = estimate;
+        draw();
+      } else {
+        damping *= 10;
+      }
+    }
+    status.value = cost <= 1e-8 ? "Converged" : "Iteration limit reached";
+  } finally {
+    running = false;
+    run.disabled = noise.disabled = progress.disabled = false;
+  }
+}
+
+function draw() {
+  const { width, height } = canvas.getBoundingClientRect();
+  if (!width || !height) return;
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+  const { poses, points } = solved ?? sliderEstimates();
+  const squaredDistance = (a, b) => dot(subtract(a, b), subtract(a, b));
+  let reprojectionSum = 0;
+  const viewer = cameraPose([
+    12 * Math.sin(yaw) * Math.cos(pitch),
+    12 * Math.sin(pitch),
+    12 * Math.cos(yaw) * Math.cos(pitch)
+  ], [0, .6, 0]);
+  const viewScale = Math.min(width * .94, height * 1.12);
+
+  function screen(point) {
+    const offset = subtract(point, viewer.center);
+    const factor = viewScale / dot(offset, viewer.forward);
+    return [width / 2 + factor * dot(offset, viewer.right), height / 2 - factor * dot(offset, viewer.up)];
+  }
+
+  function line(a, b, color, width = 1) {
+    context.beginPath();
+    context.moveTo(...screen(a));
+    context.lineTo(...screen(b));
+    context.strokeStyle = color;
+    context.lineWidth = width;
+    context.stroke();
+  }
+
+  function marker(point, color, radius) {
+    context.beginPath();
+    context.arc(...screen(point), radius, 0, 2 * Math.PI);
+    context.fillStyle = color;
+    context.fill();
+  }
+
+  for (let i = -5; i <= 5; i++) {
+    line([i, -1.6, -4], [i, -1.6, 6], "#263348");
+    line([-5, -1.6, i + 1], [5, -1.6, i + 1], "#263348");
+  }
+
+  poses.forEach((pose, cameraIndex) => {
+    const corners = [[-230, -170], [230, -170], [230, 170], [-230, 170]]
+      .map(pixel => imageToWorld(pose, pixel, imagePlaneDepth));
+    corners.forEach((corner, i) => {
+      line(pose.center, corner, "#4174a9");
+      line(corner, corners[(i + 1) % corners.length], "#60a5fa");
+    });
+    points.forEach((point, pointIndex) => {
+      const measured = observations[cameraIndex][pointIndex];
+      const predicted = project(pose, point);
+      reprojectionSum += squaredDistance(measured, predicted);
+      const observedOnPlane = imageToWorld(pose, measured, imagePlaneDepth);
+      if (showRays) {
+        const depth = dot(subtract(point, pose.center), pose.forward);
+        line(pose.center, imageToWorld(pose, measured, depth), "#fbbf2438");
+      }
+      if (showResiduals) {
+        const predictedOnPlane = imageToWorld(pose, predicted, imagePlaneDepth);
+        line(observedOnPlane, predictedOnPlane, "#fb7185", 2);
+        marker(observedOnPlane, "#fbbf24", 2.5);
+        marker(predictedOnPlane, "#fb7185", 1.6);
+      }
+    });
+  });
+  poses.forEach(pose => marker(pose.center, "#60a5fa", 6));
+  points.forEach(point => marker(point, "#34d399", 4.5));
+
+  const cameraSum = poses.reduce((sum, pose, i) => sum + squaredDistance(pose.center, idealCenters[i]), 0);
+  const pointSum = points.reduce((sum, point, i) => sum + squaredDistance(point, idealPoints[i]), 0);
+  byId("reprojection").value = Math.sqrt(reprojectionSum / (poses.length * points.length)).toFixed(2) + " px";
+  byId("camera-error").value = Math.sqrt(cameraSum / poses.length).toFixed(2) + " m";
+  byId("structure").value = Math.sqrt(pointSum / points.length).toFixed(2) + " m";
+  byId("noise-value").value = noise.value + "%";
+  byId("progress-value").value = progress.value + "%";
+}
+
+for (const input of [noise, progress]) {
+  input.addEventListener("input", () => {
+    if (running) return;
+    solved = null;
+    byId("solver-status").value = "";
+    draw();
+  });
+}
+byId("run").addEventListener("click", runAdjustment);
+byId("rays").addEventListener("click", () => {
+  showRays = !showRays;
+  byId("rays").setAttribute("aria-pressed", String(showRays));
+  updateLegend();
+  draw();
+});
+byId("residuals").addEventListener("click", () => {
+  showResiduals = !showResiduals;
+  byId("residuals").setAttribute("aria-pressed", String(showResiduals));
+  updateLegend();
+  draw();
+});
+
+function updateLegend() {
+  const labels = [];
+  if (showRays) labels.push('<span style="color:#fbbf24">—</span> Observation rays');
+  if (showResiduals) labels.push('<span style="color:#fbbf24">●</span> Observed &nbsp; <span style="color:#fb7185">●</span> Projected');
+  byId("line-legend").innerHTML = labels.join(" &nbsp; ");
+}
+
+canvas.addEventListener("pointerdown", event => {
+  if (drag || event.button !== 0) return;
+  drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  canvas.setPointerCapture(event.pointerId);
+});
+canvas.addEventListener("pointermove", event => {
+  if (event.pointerId !== drag?.id) return;
+  yaw -= (event.clientX - drag.x) * .008;
+  pitch = Math.max(-1.25, Math.min(1.25, pitch + (event.clientY - drag.y) * .008));
+  drag.x = event.clientX;
+  drag.y = event.clientY;
+  draw();
+});
+canvas.addEventListener("lostpointercapture", event => {
+  if (event.pointerId === drag?.id) drag = null;
+});
+
+updateLegend();
+draw();
+new ResizeObserver(draw).observe(canvas);
+</script>
+</body>
+</html>
