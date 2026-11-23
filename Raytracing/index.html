@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sphere Study · Interactive path tracer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header><strong>Sphere Study</strong><span>Three.js / WebGL</span></header>
+    <main>
+      <div class="heading">
+        <h1>Path tracer</h1>
+        <output id="samples">0 samples / pixel</output>
+      </div>
+      <div id="view">
+        <canvas
+          id="canvas"
+          tabindex="0"
+          aria-label="Sphere scene. Use arrow keys to orbit, plus and minus to zoom."
+        ></canvas>
+        <div id="notice" role="alert" hidden></div>
+      </div>
+      <section class="controls" aria-label="Rendering controls">
+        <label
+          >Scene
+          <select id="preset">
+            <option value="field">Sphere field</option>
+            <option value="trio">Material trio</option>
+          </select></label
+        ><label
+          >Max bounces
+          <input id="depth" type="range" min="1" max="12" value="6" /><output
+            id="depthValue"
+            >6</output
+          ></label
+        >
+        <div class="buttons">
+          <button id="pause">Pause</button
+          ><button id="reset">Reset view</button>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <span>Drag to orbit · Scroll to zoom</span
+      >
+    </footer>
+    <script src="vendor/three.min.js"></script>
+    <script src="scene.js"></script>
+    <script src="camera.js"></script>
+    <script src="ray-tracer.js"></script>
+    <script src="cpu-renderer.js"></script>
+    <script src="shaders.js"></script>
+    <script src="gpu-renderer.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
