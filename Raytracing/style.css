@@ -3,12 +3,9 @@
 }
 body {
   margin: 0;
-  background: #f6f7f3;
+  background: #fff;
   color: #202d27;
-  font:
-    16px/1.45 "Inter",
-    Arial,
-    sans-serif;
+  font: 16px/1.45 Helvetica, Arial, sans-serif;
 }
 header,
 main,
@@ -22,7 +19,6 @@ header {
   align-items: center;
   justify-content: space-between;
   height: 66px;
-  border-bottom: 1px solid #cdd4cb;
 }
 header strong {
   letter-spacing: -0.03em;
@@ -51,7 +47,7 @@ h1 {
 }
 #view {
   position: relative;
-  height: clamp(330px, 58vh, 760px);
+  height: clamp(330px, 75vh, 1000px);
   background: #c6d8e1;
   border-radius: 8px;
   overflow: hidden;
@@ -79,7 +75,6 @@ canvas:active {
   gap: 24px;
   flex-wrap: wrap;
   padding: 20px 0;
-  border-bottom: 1px solid #cdd4cb;
 }
 label {
   display: flex;
